@@ -28,9 +28,20 @@ import com.ray.callereffect.utils.BitmapUtil;
  */
 public class SlideCallerView extends View {
 
-    //滑动操作临界点
-    private final static int COMPLETE_LIMTT = 50;
-    private int mColorTheme = Color.parseColor("#B3F0F0F0");
+    //滑动操作完成的临界点
+    private final static int COMPLETE_LIMIT = 50;
+
+    //滑动静止状态
+    private final static int MOVE_STATE_IDEL = 0;
+    //手指抬起状态
+    private final static int MOVE_STATE_ACTION_UP = 1;
+    //滑动操作完成状态
+    private final static int MOVE_STATE_COMPLETE = 2;
+
+    private final static int DEFAULT_BG_COLOR = Color.parseColor("#B3F0F0F0");
+
+    private int mMoveState;
+    private int mColorTheme;
     private Paint mPaint;
     private int mMaxLeft;
     private int mMinLeft;
@@ -59,8 +70,6 @@ public class SlideCallerView extends View {
     private ValueAnimator mArrowAnim;
     private int mMoveMode = 0;
 
-    //记录是否完成滑动操作，本控件只能使用一次
-    private boolean mHasComplete;
     //是否可以点击
     private boolean mTouchable = true;
 
@@ -77,6 +86,10 @@ public class SlideCallerView extends View {
         mSlideListener = null;
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
+        TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.SlideCallerView);
+        mTouchable = typedArray.getBoolean(R.styleable.SlideCallerView_touchable, true);
+        mColorTheme = typedArray.getColor(R.styleable.SlideCallerView_bgColor, DEFAULT_BG_COLOR);
+        typedArray.recycle();
     }
 
     public SlideCallerView(Context context, AttributeSet attrs) {
@@ -187,18 +200,18 @@ public class SlideCallerView extends View {
             canvas.drawBitmap(mRightBitmap, null, mRightImageRect, null);
         }
 
-        if (mLeftArrowBitmap != null && mMoveMode == 0 && !mHasComplete) {
+        if (mLeftArrowBitmap != null && mMoveMode == 0 && mMoveState == MOVE_STATE_IDEL) {
             canvas.drawBitmap(mLeftArrowBitmap, mLeftOfRightArrow, radius - mLeftArrowBitmap.getHeight() / 2, null);
         }
 
-        if (mRightArrowBitmap != null && mMoveMode == 0 && !mHasComplete) {
+        if (mRightArrowBitmap != null && mMoveMode == 0 && mMoveState == MOVE_STATE_IDEL) {
             canvas.drawBitmap(mRightArrowBitmap, mLeftOfLeftArrow, radius - mRightArrowBitmap.getHeight() / 2, null);
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!mTouchable)
+        if (!mTouchable || mMoveState == MOVE_STATE_COMPLETE)
             return super.onTouchEvent(event);
         int action = event.getActionMasked();
         switch (action) {
@@ -226,20 +239,20 @@ public class SlideCallerView extends View {
                 if (tempX >= mMinLeft && tempX <= mMaxLeft) {
                     if (mMoveMode == 1) {
                         mLeftOfLeftImage = tempX;
-                        if (Math.abs(mLeftOfLeftImage - mMaxLeft) < COMPLETE_LIMTT) {
+                        if (Math.abs(mLeftOfLeftImage - mMaxLeft) < COMPLETE_LIMIT) {
                             if (mSlideListener != null) {
                                 mSlideListener.onSlideToAnswer();
                             }
-                            mHasComplete = true;
+                            mMoveState = MOVE_STATE_ACTION_UP;
                             break;
                         }
                     } else {
                         mLeftOfRightImage = tempX;
-                        if (Math.abs(mLeftOfRightImage - mMinLeft) < COMPLETE_LIMTT) {
+                        if (Math.abs(mLeftOfRightImage - mMinLeft) < COMPLETE_LIMIT) {
                             if (mSlideListener != null) {
                                 mSlideListener.onSlideToHangup();
                             }
-                            mHasComplete = true;
+                            mMoveState = MOVE_STATE_ACTION_UP;
                             break;
                         }
                     }
@@ -321,10 +334,10 @@ public class SlideCallerView extends View {
 
                     if (moveMode == 1) {
                         mLeftBeginOfLeftImageRect = mMaxLeft;
-                        if (mSlideListener != null && !mHasComplete) {
+                        if (mSlideListener != null && mMoveState != MOVE_STATE_ACTION_UP) {
                             mSlideListener.onSlideToAnswer();
                         }
-                        mHasComplete = true;
+                        mMoveState = MOVE_STATE_COMPLETE;
                     } else {
                         mLeftBeginOfRightImageRect = mMaxLeft;
                     }
@@ -335,10 +348,10 @@ public class SlideCallerView extends View {
                         mLeftBeginOfLeftImageRect = mMinLeft;
                     } else {
                         mLeftBeginOfRightImageRect = mMinLeft;
-                        if (mSlideListener != null && !mHasComplete) {
+                        if (mSlideListener != null && mMoveState != MOVE_STATE_ACTION_UP) {
                             mSlideListener.onSlideToHangup();
                         }
-                        mHasComplete = true;
+                        mMoveState = MOVE_STATE_COMPLETE;
                     }
 
                 }
